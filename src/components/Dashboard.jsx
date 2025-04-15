@@ -45,6 +45,49 @@ const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
 const userData = [4000, 3000, 2000, 2780, 1890, 2390, 3490];
 const revenueData = [2400, 1398, 9800, 3908, 4800, 3800, 4300];
 
+const OPENAI_API_KEY = import.meta.env.VITE_REACT_APP_OPENAI_API_KEY;
+console.log('OPENAI_API_KEY:', OPENAI_API_KEY);
+
+// Function to fetch explanation from OpenAI API
+const fetchExplanation = async (chartName, chartData) => {
+    if (!OPENAI_API_KEY) {
+        console.error('OpenAI API key is missing.');
+        return 'API key is not configured.';
+    }
+
+    const messages = [
+        {
+            role: 'system',
+            content: 'You are a helpful assistant that explains chart data.',
+        },
+        {
+            role: 'user',
+            content: `Explain the following data for the chart "${chartName}":\n\n${chartData}`,
+        },
+    ];
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+            model: 'gpt-3.5-turbo',
+            messages: messages,
+            max_tokens: 150,
+        }),
+    });
+
+    if (!response.ok) {
+        console.error('Failed to fetch explanation:', response.statusText);
+        return 'Sorry, I could not fetch an explanation at this time.';
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content.trim();
+};
+
 function Dashboard() {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [chatOpen, setChatOpen] = useState(false);
@@ -211,6 +254,30 @@ function Dashboard() {
         document.body.removeChild(link);
     };
 
+    const handleExplainData = async (chartName, chartData) => {
+        // Open the chat popup
+        setChatOpen(true);
+
+        // Add a message indicating that the explanation is being fetched
+        const botMessage = {
+            id: messages.length + 1,
+            sender: 'bot',
+            text: `Fetching explanation for "${chartName}"...`,
+        };
+        setMessages((prev) => [...prev, botMessage]);
+
+        // Fetch the explanation from the OpenAI API
+        const explanation = await fetchExplanation(chartName, chartData);
+
+        // Add the explanation as a new bot message
+        const newBotMessage = {
+            id: messages.length + 2,
+            sender: 'bot',
+            text: explanation,
+        };
+        setMessages((prev) => [...prev, newBotMessage]);
+    };
+
     const drawerContent = (
         <Box
             sx={{ width: 250 }}
@@ -307,7 +374,7 @@ function Dashboard() {
 
             <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
                 <Grid container spacing={3} direction="column">
-                    {/* First Row */}
+                    {/* User Activity Row */}
                     <Grid item xs={12}>
                         <Paper
                             sx={{
@@ -321,14 +388,30 @@ function Dashboard() {
                                 <Typography variant="h6">
                                     User Activity
                                 </Typography>
-                                <IconButton
-                                    size="small"
-                                    color="primary"
-                                    onClick={() => handleDownload('User Activity')}
-                                    aria-label="download user activity data"
-                                >
-                                    <DownloadIcon />
-                                </IconButton>
+                                <Box>
+                                    <IconButton
+                                        size="small"
+                                        color="primary"
+                                        onClick={() => handleDownload('User Activity')}
+                                        aria-label="download user activity data"
+                                    >
+                                        <DownloadIcon />
+                                    </IconButton>
+                                    <Button
+                                        size="small"
+                                        startIcon={<BotIcon />}
+                                        onClick={() =>
+                                            handleExplainData(
+                                                'User Activity',
+                                                `Month,Users\n${months
+                                                    .map((month, index) => `${month},${userData[index]}`)
+                                                    .join('\n')}`
+                                            )
+                                        }
+                                    >
+                                        Explain this data
+                                    </Button>
+                                </Box>
                             </Box>
                             <Box sx={{ width: '100%', height: 220 }}>
                                 <LineChart
@@ -360,14 +443,30 @@ function Dashboard() {
                                 <Typography variant="h6">
                                     Monthly Revenue
                                 </Typography>
-                                <IconButton
-                                    size="small"
-                                    color="primary"
-                                    onClick={() => handleDownload('Monthly Revenue')}
-                                    aria-label="download monthly revenue data"
-                                >
-                                    <DownloadIcon />
-                                </IconButton>
+                                <Box>
+                                    <IconButton
+                                        size="small"
+                                        color="primary"
+                                        onClick={() => handleDownload('Monthly Revenue')}
+                                        aria-label="download monthly revenue data"
+                                    >
+                                        <DownloadIcon />
+                                    </IconButton>
+                                    <Button
+                                        size="small"
+                                        startIcon={<BotIcon />}
+                                        onClick={() =>
+                                            handleExplainData(
+                                                'Monthly Revenue',
+                                                `Month,Revenue\n${months
+                                                    .map((month, index) => `${month},${revenueData[index]}`)
+                                                    .join('\n')}`
+                                            )
+                                        }
+                                    >
+                                        Explain this data
+                                    </Button>
+                                </Box>
                             </Box>
                             <Box sx={{ width: '100%', height: 220 }}>
                                 <BarChart
@@ -399,14 +498,33 @@ function Dashboard() {
                                 <Typography variant="h6">
                                     Growth Trends
                                 </Typography>
-                                <IconButton
-                                    size="small"
-                                    color="primary"
-                                    onClick={() => handleDownload('Growth Trends')}
-                                    aria-label="download growth trends data"
-                                >
-                                    <DownloadIcon />
-                                </IconButton>
+                                <Box>
+                                    <IconButton
+                                        size="small"
+                                        color="primary"
+                                        onClick={() => handleDownload('Growth Trends')}
+                                        aria-label="download growth trends data"
+                                    >
+                                        <DownloadIcon />
+                                    </IconButton>
+                                    <Button
+                                        size="small"
+                                        startIcon={<BotIcon />}
+                                        onClick={() =>
+                                            handleExplainData(
+                                                'Growth Trends',
+                                                `Month,Users,Revenue\n${months
+                                                    .map(
+                                                        (month, index) =>
+                                                            `${month},${userData[index]},${revenueData[index]}`
+                                                    )
+                                                    .join('\n')}`
+                                            )
+                                        }
+                                    >
+                                        Explain this data
+                                    </Button>
+                                </Box>
                             </Box>
                             <Box sx={{ width: '100%', height: 220 }}>
                                 <LineChart

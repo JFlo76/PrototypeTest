@@ -88,6 +88,51 @@ const fetchExplanation = async (chartName, chartData) => {
     return data.choices[0].message.content.trim();
 };
 
+// Function to generate responses based on user questions using OpenAI API
+const generateBotResponse = async (question) => {
+    if (!OPENAI_API_KEY) {
+        console.error('OpenAI API key is missing.');
+        return "API key is not configured.";
+    }
+
+    const messages = [
+        {
+            role: 'system',
+            content: 'You are a helpful assistant that answers questions about revenue and user activity trends based on provided data.',
+        },
+        {
+            role: 'user',
+            content: `Here is the data:\n\nMonths: ${months.join(', ')}\nUser Data: ${userData.join(', ')}\nRevenue Data: ${revenueData.join(', ')}\n\nQuestion: ${question}`,
+        },
+    ];
+
+    try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: 'gpt-3.5-turbo',
+                messages: messages,
+                max_tokens: 150,
+            }),
+        });
+
+        if (!response.ok) {
+            console.error('Failed to fetch response from OpenAI:', response.statusText);
+            return "Sorry, I couldn't process your question at this time.";
+        }
+
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+    } catch (error) {
+        console.error('Error while fetching response from OpenAI:', error);
+        return "An error occurred while processing your question.";
+    }
+};
+
 function Dashboard() {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [chatOpen, setChatOpen] = useState(false);
@@ -127,29 +172,44 @@ function Dashboard() {
         setInputMessage(e.target.value);
     };
 
-    const handleSendMessage = () => {
+    const handleSendMessage = async () => {
         if (inputMessage.trim() === '') return;
 
         // Add user message
         const newUserMessage = {
             id: messages.length + 1,
             sender: 'user',
-            text: inputMessage
+            text: inputMessage,
         };
 
-        setMessages(prev => [...prev, newUserMessage]);
+        setMessages((prev) => [...prev, newUserMessage]);
         setInputMessage('');
 
         // Process the message and generate a response
-        setTimeout(() => {
-            const botResponse = generateBotResponse(inputMessage);
+        const botMessage = {
+            id: messages.length + 2,
+            sender: 'bot',
+            text: 'Processing your question...',
+        };
+        setMessages((prev) => [...prev, botMessage]);
+
+        try {
+            const botResponse = await generateBotResponse(inputMessage);
             const newBotMessage = {
-                id: messages.length + 2,
+                id: messages.length + 3,
                 sender: 'bot',
-                text: botResponse
+                text: botResponse,
             };
-            setMessages(prev => [...prev, newBotMessage]);
-        }, 500);
+            setMessages((prev) => [...prev.slice(0, -1), newBotMessage]); // Replace the "Processing" message
+        } catch (error) {
+            console.error('Error generating bot response:', error);
+            const errorMessage = {
+                id: messages.length + 3,
+                sender: 'bot',
+                text: "An error occurred while generating a response. Please try again later.",
+            };
+            setMessages((prev) => [...prev.slice(0, -1), errorMessage]);
+        }
     };
 
     const handleKeyPress = (e) => {
@@ -157,69 +217,6 @@ function Dashboard() {
             e.preventDefault();
             handleSendMessage();
         }
-    };
-
-    // Function to generate responses based on user questions
-    const generateBotResponse = (question) => {
-        const lowerQuestion = question.toLowerCase();
-
-        // Revenue-related questions
-        if (lowerQuestion.includes('highest revenue') || lowerQuestion.includes('best month') || lowerQuestion.includes('most revenue')) {
-            const maxRevenue = Math.max(...revenueData);
-            const maxRevenueIndex = revenueData.indexOf(maxRevenue);
-            return `The highest revenue was $${maxRevenue} in ${months[maxRevenueIndex]}.`;
-        }
-
-        if (lowerQuestion.includes('lowest revenue') || lowerQuestion.includes('worst month')) {
-            const minRevenue = Math.min(...revenueData);
-            const minRevenueIndex = revenueData.indexOf(minRevenue);
-            return `The lowest revenue was $${minRevenue} in ${months[minRevenueIndex]}.`;
-        }
-
-        if (lowerQuestion.includes('average revenue') || lowerQuestion.includes('mean revenue')) {
-            const avgRevenue = revenueData.reduce((a, b) => a + b, 0) / revenueData.length;
-            return `The average monthly revenue is $${avgRevenue.toFixed(2)}.`;
-        }
-
-        if (lowerQuestion.includes('total revenue') || lowerQuestion.includes('sum of revenue')) {
-            const totalRevenue = revenueData.reduce((a, b) => a + b, 0);
-            return `The total revenue across all months is $${totalRevenue}.`;
-        }
-
-        // User activity questions
-        if (lowerQuestion.includes('most users') || lowerQuestion.includes('highest users') || lowerQuestion.includes('peak users')) {
-            const maxUsers = Math.max(...userData);
-            const maxUsersIndex = userData.indexOf(maxUsers);
-            return `The highest user activity was ${maxUsers} users in ${months[maxUsersIndex]}.`;
-        }
-
-        if (lowerQuestion.includes('least users') || lowerQuestion.includes('lowest users')) {
-            const minUsers = Math.min(...userData);
-            const minUsersIndex = userData.indexOf(minUsers);
-            return `The lowest user activity was ${minUsers} users in ${months[minUsersIndex]}.`;
-        }
-
-        if (lowerQuestion.includes('user trend') || lowerQuestion.includes('user activity trend')) {
-            const firstMonth = userData[0];
-            const lastMonth = userData[userData.length - 1];
-            const trend = lastMonth > firstMonth ? 'increasing' : lastMonth < firstMonth ? 'decreasing' : 'stable';
-            return `The overall user activity trend is ${trend} from ${months[0]} to ${months[months.length - 1]}.`;
-        }
-
-        // Comparison questions
-        if (lowerQuestion.includes('compare') || lowerQuestion.includes('correlation')) {
-            return `Looking at the Growth Trends chart, there appears to be some correlation between user activity and revenue. When user numbers increase, revenue often follows a similar pattern, though not always proportionally.`;
-        }
-
-        // Month-specific questions
-        for (let i = 0; i < months.length; i++) {
-            if (lowerQuestion.includes(months[i].toLowerCase())) {
-                return `In ${months[i]}, there were ${userData[i]} active users and the revenue was $${revenueData[i]}.`;
-            }
-        }
-
-        // Default response for unrecognized questions
-        return "I'm not sure about that. Try asking about revenue trends, user activity, or specific months in the data.";
     };
 
     const handleDownload = (chartName) => {

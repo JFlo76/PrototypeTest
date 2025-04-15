@@ -46,7 +46,6 @@ const userData = [4000, 3000, 2000, 2780, 1890, 2390, 3490];
 const revenueData = [2400, 1398, 9800, 3908, 4800, 3800, 4300];
 
 const OPENAI_API_KEY = import.meta.env.VITE_REACT_APP_OPENAI_API_KEY;
-console.log('OPENAI_API_KEY:', OPENAI_API_KEY);
 
 // Function to fetch explanation from OpenAI API
 const fetchExplanation = async (chartName, chartData) => {
